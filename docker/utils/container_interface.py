@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -194,6 +195,47 @@ class ContainerInterface:
             + self.add_profiles
             + self.add_env_files
             + ["up", "--detach", "--build", "--remove-orphans"]
+        )
+        subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
+
+    def start_no_build(self):
+        """Start the container without (re)building the image.
+
+        Assumes the suffixed image is already present on the host (e.g. via
+        ``docker tag`` or an earlier ``start``/``build``). Fails fast with a
+        clear error if it is not. Unlike :meth:`start`, this method does not
+        build the base image first for non-base profiles - the caller is
+        responsible for ensuring the corresponding suffixed image already
+        exists.
+        """
+        if not self.does_image_exist():
+            print(
+                f"[ERROR] Image '{self.image_name}' was not found on the host.\n"
+                f"        'start-no-build' requires the image to be present.\n"
+                f"        Build it with './docker/container.py build {self.profile}'"
+                f" (with --suffix if applicable), or tag an existing image with the"
+                f" expected name, then retry."
+            )
+            sys.exit(1)
+
+        print(
+            f"[INFO] Starting the container '{self.container_name}' in the background"
+            f" using existing image '{self.image_name}' (no build)...\n"
+        )
+
+        # Check if the container history file exists (bind-mount target on the host)
+        container_history_file = self.context_dir / ".isaac-lab-docker-history"
+        if not container_history_file.exists():
+            # Create the file with sticky bit on the group
+            container_history_file.touch(mode=0o2644, exist_ok=True)
+
+        # start the container using the pre-existing image (no build pass)
+        cmd = (
+            ["docker", "compose"]
+            + self.add_yamls
+            + self.add_profiles
+            + self.add_env_files
+            + ["up", "--detach", "--no-build", "--remove-orphans"]
         )
         subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
 
