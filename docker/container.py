@@ -58,6 +58,16 @@ def parse_cli_args() -> argparse.Namespace:
         ),
     )
     parent_parser.add_argument(
+        "--gpu-id",
+        nargs="?",
+        default=None,
+        help=(
+            "GPU index to expose inside the container. Forwarded to the docker-compose 'device_ids'"
+            " reservation via ISAACLAB_GPU_ID so that exactly one GPU is visible in the container."
+            " Defaults to None, in which case the compose file falls back to GPU 0."
+        ),
+    )
+    parent_parser.add_argument(
         "--info",
         action="store_true",
         help="Print the container interface information. This is useful for debugging purposes.",
@@ -124,6 +134,7 @@ def main(args: argparse.Namespace):
         yamls=args.files,
         envs=args.env_files,
         suffix=args.suffix,
+        gpu_id=args.gpu_id,
     )
     if args.info:
         print("[INFO] Printing container interface information...\n")

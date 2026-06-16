@@ -82,7 +82,10 @@ x-default-isaac-lab-deploy: &default-isaac-lab-deploy
     reservations:
       devices:
         - driver: nvidia
-          count: all
+          # Expose exactly one GPU inside the container, selected per-invocation
+          # via ISAACLAB_GPU_ID (defaults to GPU 0 when unset). `device_ids` and
+          # `count` are mutually exclusive in Compose, so this replaces `count: all`.
+          device_ids: [ "${ISAACLAB_GPU_ID:-0}" ]
           capabilities: [ gpu ]
 
 services:
@@ -141,16 +144,31 @@ services:
 
 volumes:
   # isaac-sim
+  # These caches are pinned with an explicit `name:` so they stay shared across
+  # every per-GPU Compose project (COMPOSE_PROJECT_NAME=isaaclab-<user>-gpu<id>).
+  # Without a static name they would be re-prefixed per project and each new
+  # per-GPU container would cold-start its Kit/pip/GL caches.
   isaac-cache-kit:
+    name: isaac-cache-kit
   isaac-cache-ov:
+    name: isaac-cache-ov
   isaac-cache-pip:
+    name: isaac-cache-pip
   isaac-cache-gl:
+    name: isaac-cache-gl
   isaac-cache-compute:
+    name: isaac-cache-compute
   isaac-logs:
+    name: isaac-logs
   isaac-carb-logs:
+    name: isaac-carb-logs
   isaac-data:
+    name: isaac-data
   isaac-docs:
+    name: isaac-docs
   # isaac-lab
+  # Output artifacts are left project-scoped, so each per-GPU container keeps its
+  # own isolated copies.
   isaac-lab-docs:
   isaac-lab-logs:
   isaac-lab-data:

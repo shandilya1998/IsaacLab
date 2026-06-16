@@ -26,6 +26,7 @@ class ContainerInterface:
         envs: list[str] | None = None,
         statefile: StateFile | None = None,
         suffix: str | None = None,
+        gpu_id: str | None = None,
     ):
         """Initialize the container interface with the given parameters.
 
@@ -49,6 +50,11 @@ class ContainerInterface:
                 suffix is set to the empty string. A hyphen is inserted in between the profile and the suffix if
                 the suffix is a nonempty string.  For example, if "base" is passed to profile, and "custom" is
                 passed to suffix, then the produced docker image and container will be named ``isaac-lab-base-custom``.
+            gpu_id:
+                Optional GPU index to expose inside the container. When provided, it is forwarded to the
+                ``docker-compose.yaml`` ``device_ids`` reservation via the ``ISAACLAB_GPU_ID`` environment
+                variable, so exactly that one GPU is visible inside the container. Defaults to None, in which
+                case the compose file falls back to GPU 0.
         """
         # set the context directory
         self.context_dir = context_dir
@@ -86,6 +92,18 @@ class ContainerInterface:
         self.environ = os.environ.copy()
         self.environ["DOCKER_NAME_SUFFIX"] = self.suffix
 
+        # Scope each suffixed instance to its own Compose project so that prior
+        # containers belonging to the same profile under a different suffix are
+        # invisible to subsequent `up` invocations. Without this, Compose's
+        # per-service reconciliation stops and removes the previously running
+        # suffixed container (see DOCKER.md §3.13).
+        self.environ["COMPOSE_PROJECT_NAME"] = f"isaaclab{self.suffix}"
+
+        # forward the requested GPU index to the compose `device_ids` reservation
+        self.gpu_id = gpu_id
+        if gpu_id is not None:
+            self.environ["ISAACLAB_GPU_ID"] = str(gpu_id)
+
         # resolve the image extension through the passed yamls and envs
         self._resolve_image_extension(yamls, envs)
         # load the environment variables from the .env files
@@ -102,6 +120,8 @@ class ContainerInterface:
         print(f"{'Service Name:':25} {self.service_name}")
         print(f"{'Image Name:':25} {self.image_name}")
         print(f"{'Container Name:':25} {self.container_name}")
+        print(f"{'Compose Project:':25} {self.environ.get('COMPOSE_PROJECT_NAME', '')}")
+        print(f"{'GPU ID:':25} {self.environ.get('ISAACLAB_GPU_ID', '(default 0)')}")
 
         print("-" * 60)
         print(f"{'Docker Compose Arguments':^60}")
